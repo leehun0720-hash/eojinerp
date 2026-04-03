@@ -1,0 +1,254 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users/{userId}/buyers
+    // Document ID: string (buyerId)
+    // Fields: id (number), company (string), contact (string), phone (string), note (string)
+    //
+    // Collection: users/{userId}/suppliers
+    // Document ID: string (supplierId)
+    // Fields: id (number), company (string), contact (string), phone (string), note (string)
+    //
+    // Collection: users/{userId}/products
+    // Document ID: string (productId)
+    // Fields: id (number), name (string), material (string), price (number)
+    //
+    // Collection: users/{userId}/materials
+    // Document ID: string (materialId)
+    // Fields: id (string), name (string)
+    //
+    // Collection: users/{userId}/invoiceHistories
+    // Document ID: string (invoiceId)
+    // Fields: invoiceNo (string), customerName (string), isVat (bool), items (list), totalUsd (number), date (string)
+    //
+    // Collection: users/{userId}/kanbanCards
+    // Document ID: string (cardId)
+    // Fields: id (string), title (string), customer (string), status (string), date (string), details (string)
+    //
+    // Collection: users/{userId}/outsourceEstimates
+    // Document ID: string (estimateId)
+    // Fields: id (number), invoiceNo (string), supplier (string), details (string), costUsd (number)
+    //
+    // Collection: users/{userId}/profitSheets
+    // Document ID: string (profitId)
+    // Fields: id (number), invoiceNo (string), customerName (string), revenue (number), cost (number), logistics (number), profit (number), margin (string), date (string)
+    //
+    // Collection: users/{userId}/shippingList
+    // Document ID: string (shippingId)
+    // Fields: id (string), invoiceNo (string), freight (number), duty (number), clearance (number), inland (number), incoterms (string), status (string)
+    //
+    // Collection: users/{userId}/settings
+    // Document ID: contractData
+    // Fields: customer (string), productName (string), totalUsd (number), vatType (string), clause1 (string), clause2 (string), clause3 (string), clause4 (string), clause5 (string), clause6 (string), specialClause (string)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidPartner() {
+      return hasOnlyAllowedFields(['id', 'company', 'contact', 'phone', 'note']) &&
+             request.resource.data.id is number &&
+             validStringLength('company', 0, 100) &&
+             validStringLength('contact', 0, 100) &&
+             validStringLength('phone', 0, 50) &&
+             validStringLength('note', 0, 500);
+    }
+
+    function isValidProduct() {
+      return hasOnlyAllowedFields(['id', 'name', 'material', 'price']) &&
+             request.resource.data.id is number &&
+             validStringLength('name', 0, 100) &&
+             validStringLength('material', 0, 100) &&
+             request.resource.data.price is number && request.resource.data.price >= 0;
+    }
+
+    function isValidMaterial() {
+      return hasOnlyAllowedFields(['id', 'name']) &&
+             validStringLength('id', 0, 50) &&
+             validStringLength('name', 0, 100);
+    }
+
+    function isValidInvoiceItem(item) {
+      return item.keys().hasOnly(['id', 'name', 'material', 'qty', 'price']) &&
+             item.id is string && item.id.size() <= 50 &&
+             item.name is string && item.name.size() <= 100 &&
+             item.material is string && item.material.size() <= 100 &&
+             item.qty is number && item.qty >= 0 &&
+             item.price is number && item.price >= 0;
+    }
+
+    function areValidInvoiceItems(items) {
+      return items is list && items.size() <= 100; // Assume max 100 items per invoice
+      // Note: Full deep array inspection is complex in rules, but we check size.
+    }
+
+    function isValidInvoiceHistory() {
+      return hasOnlyAllowedFields(['invoiceNo', 'customerName', 'isVat', 'items', 'totalUsd', 'date']) &&
+             validStringLength('invoiceNo', 0, 50) &&
+             validStringLength('customerName', 0, 100) &&
+             request.resource.data.isVat is bool &&
+             areValidInvoiceItems(request.resource.data.items) &&
+             request.resource.data.totalUsd is number && request.resource.data.totalUsd >= 0 &&
+             validStringLength('date', 0, 50);
+    }
+
+    function isValidKanbanCard() {
+      return hasOnlyAllowedFields(['id', 'title', 'customer', 'status', 'date', 'details']) &&
+             validStringLength('id', 0, 50) &&
+             validStringLength('title', 0, 100) &&
+             validStringLength('customer', 0, 100) &&
+             request.resource.data.status in ['waiting', 'material', 'sewing', 'inspection'] &&
+             validStringLength('date', 0, 50) &&
+             validStringLength('details', 0, 1000);
+    }
+
+    function isValidOutsourceEstimate() {
+      return hasOnlyAllowedFields(['id', 'invoiceNo', 'supplier', 'details', 'costUsd']) &&
+             request.resource.data.id is number &&
+             validStringLength('invoiceNo', 0, 50) &&
+             validStringLength('supplier', 0, 100) &&
+             validStringLength('details', 0, 1000) &&
+             request.resource.data.costUsd is number && request.resource.data.costUsd >= 0;
+    }
+
+    function isValidProfitSheet() {
+      return hasOnlyAllowedFields(['id', 'invoiceNo', 'customerName', 'revenue', 'cost', 'logistics', 'profit', 'margin', 'date']) &&
+             request.resource.data.id is number &&
+             validStringLength('invoiceNo', 0, 50) &&
+             validStringLength('customerName', 0, 100) &&
+             request.resource.data.revenue is number &&
+             request.resource.data.cost is number &&
+             request.resource.data.logistics is number &&
+             request.resource.data.profit is number &&
+             validStringLength('margin', 0, 50) &&
+             validStringLength('date', 0, 50);
+    }
+
+    function isValidShippingData() {
+      return hasOnlyAllowedFields(['id', 'invoiceNo', 'freight', 'duty', 'clearance', 'inland', 'incoterms', 'status']) &&
+             validStringLength('id', 0, 50) &&
+             validStringLength('invoiceNo', 0, 50) &&
+             request.resource.data.freight is number && request.resource.data.freight >= 0 &&
+             request.resource.data.duty is number && request.resource.data.duty >= 0 &&
+             request.resource.data.clearance is number && request.resource.data.clearance >= 0 &&
+             request.resource.data.inland is number && request.resource.data.inland >= 0 &&
+             validStringLength('incoterms', 0, 50) &&
+             validStringLength('status', 0, 50);
+    }
+
+    function isValidContractData() {
+      return hasOnlyAllowedFields(['customer', 'productName', 'totalUsd', 'vatType', 'clause1', 'clause2', 'clause3', 'clause4', 'clause5', 'clause6', 'specialClause']) &&
+             validStringLength('customer', 0, 100) &&
+             validStringLength('productName', 0, 200) &&
+             request.resource.data.totalUsd is number && request.resource.data.totalUsd >= 0 &&
+             validStringLength('vatType', 0, 50) &&
+             validStringLength('clause1', 0, 2000) &&
+             validStringLength('clause2', 0, 2000) &&
+             validStringLength('clause3', 0, 2000) &&
+             validStringLength('clause4', 0, 2000) &&
+             validStringLength('clause5', 0, 2000) &&
+             validStringLength('clause6', 0, 2000) &&
+             validStringLength('specialClause', 0, 2000);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      match /buyers/{buyerId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidPartner();
+        allow update: if isOwner(userId) && isValidPartner();
+        allow delete: if isOwner(userId);
+      }
+      
+      match /suppliers/{supplierId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidPartner();
+        allow update: if isOwner(userId) && isValidPartner();
+        allow delete: if isOwner(userId);
+      }
+
+      match /products/{productId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidProduct();
+        allow update: if isOwner(userId) && isValidProduct();
+        allow delete: if isOwner(userId);
+      }
+
+      match /materials/{materialId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidMaterial();
+        allow update: if isOwner(userId) && isValidMaterial();
+        allow delete: if isOwner(userId);
+      }
+
+      match /invoiceHistories/{invoiceId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidInvoiceHistory();
+        allow update: if isOwner(userId) && isValidInvoiceHistory();
+        allow delete: if isOwner(userId);
+      }
+
+      match /kanbanCards/{cardId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidKanbanCard();
+        allow update: if isOwner(userId) && isValidKanbanCard();
+        allow delete: if isOwner(userId);
+      }
+
+      match /outsourceEstimates/{estimateId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidOutsourceEstimate();
+        allow update: if isOwner(userId) && isValidOutsourceEstimate();
+        allow delete: if isOwner(userId);
+      }
+
+      match /profitSheets/{profitId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidProfitSheet();
+        allow update: if isOwner(userId) && isValidProfitSheet();
+        allow delete: if isOwner(userId);
+      }
+
+      match /shippingList/{shippingId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidShippingData();
+        allow update: if isOwner(userId) && isValidShippingData();
+        allow delete: if isOwner(userId);
+      }
+
+      match /settings/contractData {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidContractData();
+        allow update: if isOwner(userId) && isValidContractData();
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

@@ -1,0 +1,190 @@
+{
+  "entities": {
+    "Partner": {
+      "title": "Partner",
+      "description": "A business partner (buyer or supplier).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "company": { "type": "string" },
+        "contact": { "type": "string" },
+        "phone": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "required": ["id", "company", "contact", "phone", "note"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A product offered by the company.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "name": { "type": "string" },
+        "material": { "type": "string" },
+        "price": { "type": "number" }
+      },
+      "required": ["id", "name", "material", "price"]
+    },
+    "Material": {
+      "title": "Material",
+      "description": "A material used for products.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "InvoiceItem": {
+      "title": "InvoiceItem",
+      "description": "An item within an invoice.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "material": { "type": "string" },
+        "qty": { "type": "number" },
+        "price": { "type": "number" }
+      },
+      "required": ["id", "name", "material", "qty", "price"]
+    },
+    "InvoiceHistory": {
+      "title": "InvoiceHistory",
+      "description": "A record of a generated invoice.",
+      "type": "object",
+      "properties": {
+        "invoiceNo": { "type": "string" },
+        "customerName": { "type": "string" },
+        "isVat": { "type": "boolean" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/entities/InvoiceItem" }
+        },
+        "totalUsd": { "type": "number" },
+        "date": { "type": "string" }
+      },
+      "required": ["invoiceNo", "customerName", "isVat", "items", "totalUsd", "date"]
+    },
+    "KanbanCard": {
+      "title": "KanbanCard",
+      "description": "A card on the production kanban board.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "customer": { "type": "string" },
+        "status": { "type": "string", "enum": ["waiting", "material", "sewing", "inspection"] },
+        "date": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "title", "customer", "status", "date", "details"]
+    },
+    "OutsourceEstimate": {
+      "title": "OutsourceEstimate",
+      "description": "An estimate for outsourced work.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "invoiceNo": { "type": "string" },
+        "supplier": { "type": "string" },
+        "details": { "type": "string" },
+        "costUsd": { "type": "number" }
+      },
+      "required": ["id", "invoiceNo", "supplier", "details", "costUsd"]
+    },
+    "ShippingData": {
+      "title": "ShippingData",
+      "description": "Shipping information for an invoice.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNo": { "type": "string" },
+        "freight": { "type": "number" },
+        "duty": { "type": "number" },
+        "clearance": { "type": "number" },
+        "inland": { "type": "number" },
+        "incoterms": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "invoiceNo", "freight", "duty", "clearance", "inland", "incoterms", "status"]
+    },
+    "ContractData": {
+      "title": "ContractData",
+      "description": "Contract details and clauses.",
+      "type": "object",
+      "properties": {
+        "customer": { "type": "string" },
+        "productName": { "type": "string" },
+        "totalUsd": { "type": "number" },
+        "vatType": { "type": "string" },
+        "clause1": { "type": "string" },
+        "clause2": { "type": "string" },
+        "clause3": { "type": "string" },
+        "clause4": { "type": "string" },
+        "clause5": { "type": "string" },
+        "clause6": { "type": "string" },
+        "specialClause": { "type": "string" }
+      },
+      "required": ["customer", "productName", "totalUsd", "vatType", "clause1", "clause2", "clause3", "clause4", "clause5", "clause6", "specialClause"]
+    },
+    "ProfitSheet": {
+      "title": "ProfitSheet",
+      "description": "A record of profit calculation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "invoiceNo": { "type": "string" },
+        "customerName": { "type": "string" },
+        "revenue": { "type": "number" },
+        "cost": { "type": "number" },
+        "logistics": { "type": "number" },
+        "profit": { "type": "number" },
+        "margin": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "invoiceNo", "customerName", "revenue", "cost", "logistics", "profit", "margin", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/buyers/{buyerId}": {
+      "schema": { "$ref": "#/entities/Partner" },
+      "description": "Buyers for a specific user."
+    },
+    "/users/{userId}/suppliers/{supplierId}": {
+      "schema": { "$ref": "#/entities/Partner" },
+      "description": "Suppliers for a specific user."
+    },
+    "/users/{userId}/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Products for a specific user."
+    },
+    "/users/{userId}/materials/{materialId}": {
+      "schema": { "$ref": "#/entities/Material" },
+      "description": "Materials for a specific user."
+    },
+    "/users/{userId}/invoiceHistories/{invoiceId}": {
+      "schema": { "$ref": "#/entities/InvoiceHistory" },
+      "description": "Invoice histories for a specific user."
+    },
+    "/users/{userId}/kanbanCards/{cardId}": {
+      "schema": { "$ref": "#/entities/KanbanCard" },
+      "description": "Kanban cards for a specific user."
+    },
+    "/users/{userId}/outsourceEstimates/{estimateId}": {
+      "schema": { "$ref": "#/entities/OutsourceEstimate" },
+      "description": "Outsource estimates for a specific user."
+    },
+    "/users/{userId}/profitSheets/{profitId}": {
+      "schema": { "$ref": "#/entities/ProfitSheet" },
+      "description": "Profit sheets for a specific user."
+    },
+    "/users/{userId}/shippingList/{shippingId}": {
+      "schema": { "$ref": "#/entities/ShippingData" },
+      "description": "Shipping data for a specific user."
+    },
+    "/users/{userId}/settings/contractData": {
+      "schema": { "$ref": "#/entities/ContractData" },
+      "description": "Contract settings for a specific user."
+    }
+  }
+}
